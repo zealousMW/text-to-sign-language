@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Sign Language Translator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-3xl mx-auto">
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <!-- Header -->
+                <div class="px-6 py-4 bg-blue-600">
+                    <h1 class="text-2xl font-bold text-white text-center">
+                        Indian Sign Language Translator
+                    </h1>
+                </div>
+
+                <!-- Content -->
+                <div class="p-6 space-y-6">
+                    <!-- Input Section -->
+                    <div class="space-y-4">
+                        <div class="flex gap-4">
+                            <input 
+                                type="text" 
+                                id="sentence-input"
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter a sentence to translate..."
+                            >
+                            <button 
+                                id="translate-btn"
+                                class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                            >
+                                Translate
+                            </button>
+                        </div>
+
+                        <!-- Loading Spinner -->
+                        <div id="loading" class="hidden flex justify-center">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        </div>
+
+                        <!-- Error Alert -->
+                        <div id="error-alert" class="hidden p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                            <span id="error-message"></span>
+                        </div>
+
+                        <!-- Words Display -->
+                        <div id="words-display" class="hidden space-y-2">
+                            <h3 class="font-semibold text-gray-700">Words in SOV order:</h3>
+                            <div id="words-list" class="flex flex-wrap gap-2">
+                            </div>
+                        </div>
+
+                        <!-- Video Output -->
+                        <div id="video-container" class="hidden space-y-4">
+                            <h3 class="font-semibold text-gray-700">Translation:</h3>
+                            <div class="relative rounded-lg overflow-hidden bg-black aspect-video">
+                                <video 
+                                    id="output-video"
+                                    class="w-full h-full"
+                                    controls
+                                    controlsList="nodownload"
+                                    playsinline
+                                >
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                            <div id="video-error" class="hidden text-red-600 text-sm">
+                                Error playing video. Please try again.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const translateBtn = document.getElementById('translate-btn');
+            const inputField = document.getElementById('sentence-input');
+            const loading = document.getElementById('loading');
+            const errorAlert = document.getElementById('error-alert');
+            const errorMessage = document.getElementById('error-message');
+            const videoContainer = document.getElementById('video-container');
+            const outputVideo = document.getElementById('output-video');
+            const videoError = document.getElementById('video-error');
+            const wordsDisplay = document.getElementById('words-display');
+            const wordsList = document.getElementById('words-list');
+
+            // Handle video loading errors
+            outputVideo.addEventListener('error', function() {
+                videoError.classList.remove('hidden');
+            });
+
+            // Hide video error when video starts playing
+            outputVideo.addEventListener('playing', function() {
+                videoError.classList.add('hidden');
+            });
+
+            translateBtn.addEventListener('click', async function() {
+                const sentence = inputField.value.trim();
+                if (!sentence) {
+                    showError('Please enter a sentence to translate.');
+                    return;
+                }
+
+                // Reset UI
+                hideError();
+                showLoading();
+                videoContainer.classList.add('hidden');
+                wordsDisplay.classList.add('hidden');
+                videoError.classList.add('hidden');
+
+                try {
+                    const response = await fetch('/translate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ sentence: sentence })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Translation failed');
+                    }
+
+                    // Display words in SOV order
+                    if (data.words && data.words.length > 0) {
+                        wordsList.innerHTML = data.words
+                            .map(word => `<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">${word}</span>`)
+                            .join('');
+                        wordsDisplay.classList.remove('hidden');
+                    }
+
+                    // Display video
+                    if (data.video_url) {
+                        // Add timestamp to prevent caching
+                        const timestamp = new Date().getTime();
+                        outputVideo.src = `${data.video_url}?t=${timestamp}`;
+                        videoContainer.classList.remove('hidden');
+                        
+                        // Attempt to load and play the video
+                        try {
+                            await outputVideo.load();
+                        } catch (videoError) {
+                            console.error('Video loading error:', videoError);
+                            showError('Error loading video. Please try again.');
+                        }
+                    }
+
+                } catch (error) {
+                    showError(error.message);
+                } finally {
+                    hideLoading();
+                }
+            });
+
+            function showLoading() {
+                loading.classList.remove('hidden');
+                translateBtn.disabled = true;
+            }
+
+            function hideLoading() {
+                loading.classList.add('hidden');
+                translateBtn.disabled = false;
+            }
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorAlert.classList.remove('hidden');
+            }
+
+            function hideError() {
+                errorAlert.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
